@@ -9,6 +9,7 @@ import urllib
 import time
 import threading
 import atexit
+import os, signal
 
 from typing import Set
 from enum import Enum
@@ -24,6 +25,7 @@ from victron_ble.exceptions import AdvertisementKeyMissingError, UnknownDeviceEr
 
 app = Flask(__name__)
 auth = HTTPBasicAuth()
+
 users = {}
 
 scrape_timer = threading.Timer(0, lambda x: None, ())
@@ -144,9 +146,15 @@ def read():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     while RUNNIG:
-        scanner = Scanner(VICTRON_KEYS.keys(), VICTRON_KEYS, indent=None)        
-        loop.run_until_complete(scanner.run())
-        scanner = None
+        #scanner = Scanner(DEVICES, VICTRON_KEYS, indent=None)
+        try:
+            scanner = Scanner(VICTRON_KEYS.keys(), VICTRON_KEYS, indent=None)
+            loop.run_until_complete(scanner.run())
+            scanner = None
+        except Exception as ex:
+            app.logger.error('Scan Failed=[' + str(ex) + ']')
+            exec_action('sendnotification', ['victron_scan_failed', urllib.parse.quote_plus(str(ex))])
+            os.kill(os.getpid(), signal.SIGINT)
 
 def configure():
     with open('users.txt') as file:
